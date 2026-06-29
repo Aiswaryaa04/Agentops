@@ -1,0 +1,74 @@
+"""
+AgentOps ingestion API.
+
+The SDK POSTs completed traces here; the (future) frontend GETs them from
+here. This is the only thing that talks to Postgres directly — neither the
+SDK nor the frontend ever connects to the database itself, which keeps the
+schema free to change without breaking other parts of the system.
+"""
+
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from typing import Optional, Any
+import db
+
+app = FastAPI(title="AgentOps Ingestion API")
+
+# Allow the frontend (running on a different port) to call this API.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # fine for local dev; tighten before any real deploy
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+class EventIn(BaseModel):
+    id: str
+    run_id: str
+    type: str
+    name: str
+    input: Optional[Any] = None
+    output: Optional[Any] = None
+    start_time: float
+    end_time: float
+    duration_sec: float
+    error: Optional[str] = None
+    tokens_in: Optional[int] = None
+    tokens_out: Optional[int] = None
+
+
+class TraceIn(BaseModel):
+    run_id: str
+    name: str
+    start_time: float
+    end_time: float
+    events: list[EventIn]
+
+
+@app.post("/traces")
+def ingest_trace(trace: TraceIn):
+    """Receives one completed run + all its events, writes them to Postgres."""
+    db.insert_run(
+        run_id=trace.run_id,
+        name=trace.name,
+        start_time=trace.start_time,
+        end_time=trace.end_time,
+        status="completed",
+    )
+    db.insert_events([e.dict() for e in trace.events])
+    return {"status": "ok", "run_id": trace.run_id, "events_stored": len(trace.events)}
+
+
+@app.get("/runs")
+def list_runs():
+    return db.fetch_runs()
+
+
+@app.get("/runs/{run_id}")
+def get_run(run_id: str):
+    run = db.fetch_run_with_events(run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Run not found")
+    return run

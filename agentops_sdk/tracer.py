@@ -19,6 +19,9 @@ import uuid
 import json
 import functools
 from contextvars import ContextVar
+import requests
+import os
+
 
 # Holds the events for the currently active run. ContextVar (not a plain
 # global) so this would work correctly even with concurrent/async runs later.
@@ -58,17 +61,26 @@ def start_run(name: str = "agent_run") -> Run:
     _current_run.set(run)
     return run
 
+AGENTOPS_API_URL = os.environ.get("AGENTOPS_API_URL", "http://localhost:8000")
+
 
 def end_run() -> dict:
-    """Call this when the agent run is done. Prints + returns the full trace."""
+    """Call this when the agent run is done. Sends the trace to the AgentOps
+    API for storage, and returns it locally too."""
     run = _current_run.get()
     if run is None:
         raise RuntimeError("end_run() called but no run was started")
     run.finish()
     trace = run.to_dict()
-    print("\n=== AGENTOPS TRACE ===")
-    print(json.dumps(trace, indent=2, default=str))
-    print("=== END TRACE ===\n")
+
+    try:
+        resp = requests.post(f"{AGENTOPS_API_URL}/traces", json=trace, timeout=5)
+        resp.raise_for_status()
+        print(f"\n✅ Trace sent to AgentOps API: {AGENTOPS_API_URL}/runs/{run.id}")
+    except requests.exceptions.RequestException as e:
+        # Fail open: never let observability break the agent itself.
+        print(f"\n⚠️  Could not send trace to AgentOps API ({e}). Trace kept in memory only.")
+
     _current_run.set(None)
     return trace
 
