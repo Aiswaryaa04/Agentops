@@ -99,3 +99,41 @@ def fetch_run_with_events(run_id: str):
             return run
     finally:
         conn.close()
+
+def insert_flags(run_id: str, flags: list[dict]):
+    if not flags:
+        return
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            psycopg2.extras.execute_batch(
+                cur,
+                """
+                INSERT INTO failure_flags (id, run_id, event_id, flag_type, severity, description)
+                VALUES (%(id)s, %(run_id)s, %(event_id)s, %(flag_type)s, %(severity)s, %(description)s)
+                ON CONFLICT (id) DO NOTHING
+                """,
+                [{**f, "run_id": run_id} for f in flags],
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def fetch_flags(run_id: str):
+    conn = get_connection()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("SELECT * FROM failure_flags WHERE run_id = %s", (run_id,))
+            return cur.fetchall()
+    finally:
+        conn.close()
+
+def delete_flags_for_run(run_id: str):
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM failure_flags WHERE run_id = %s", (run_id,))
+        conn.commit()
+    finally:
+        conn.close()
