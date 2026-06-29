@@ -1,0 +1,39 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #0a0a0a;
+  font-family: "JetBrains Mono", "SF Mono", Menlo, monospace;
+}
+
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 95, 86, 0.5); }
+  50% { box-shadow: 0 0 0 6px rgba(255, 95, 86, 0); }
+}
+
+.cursor-blink {
+  animation: blink 1s step-end infinite;
+}
+
+.node-flagged {
+  animation: pulse 1.6s ease-out infinite;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: #2a2a2a;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
