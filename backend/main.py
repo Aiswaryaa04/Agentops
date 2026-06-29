@@ -12,7 +12,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, Any
 import db
-import failure_detection  # add this import near the top, with the others
+import failure_detection  
+import cost
 
 app = FastAPI(title="AgentOps Ingestion API")
 
@@ -91,3 +92,10 @@ def analyze_run(run_id: str):
     db.insert_flags(run_id, flags)
 
     return {"run_id": run_id, "flags_found": len(flags), "flags": flags}
+
+@app.get("/runs/{run_id}/cost")
+def get_run_cost(run_id: str):
+    run = db.fetch_run_with_events(run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Run not found")
+    return cost.run_cost_breakdown(run["events"])
