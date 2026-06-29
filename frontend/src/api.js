@@ -26,3 +26,8 @@ export async function fetchRunCost(runId) {
   const res = await axios.get(`${API_BASE}/runs/${runId}/cost`);
   return res.data;
 }
+
+export async function fetchCostSummary() {
+  const res = await axios.get(`${API_BASE}/cost-summary`);
+  return res.data;
+}

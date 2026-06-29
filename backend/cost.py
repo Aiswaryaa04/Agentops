@@ -66,3 +66,33 @@ def run_cost_breakdown(events: list[dict]) -> dict:
         "total_tokens_in": total_tokens_in,
         "total_tokens_out": total_tokens_out,
     }
+
+def all_runs_cost_summary(runs_with_events: list[dict]) -> dict:
+    """
+    Aggregates cost across multiple runs -- for a dashboard view rather
+    than a single-run breakdown. Expects a list of {id, name, events}.
+    """
+    per_run = []
+    total_cost = 0.0
+    total_tokens_in = 0
+    total_tokens_out = 0
+
+    for run in runs_with_events:
+        breakdown = run_cost_breakdown(run["events"])
+        per_run.append({
+            "run_id": run["id"],
+            "run_name": run["name"],
+            "cost_usd": breakdown["total_cost_usd"],
+            "tokens_in": breakdown["total_tokens_in"],
+            "tokens_out": breakdown["total_tokens_out"],
+        })
+        total_cost += breakdown["total_cost_usd"]
+        total_tokens_in += breakdown["total_tokens_in"]
+        total_tokens_out += breakdown["total_tokens_out"]
+
+    return {
+        "runs": per_run,
+        "total_cost_usd": round(total_cost, 6),
+        "total_tokens_in": total_tokens_in,
+        "total_tokens_out": total_tokens_out,
+    }

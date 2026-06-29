@@ -1,3 +1,6 @@
+from dotenv import load_dotenv
+load_dotenv()
+
 """
 Deliberately broken agent run, used only to prove failure detection works.
 

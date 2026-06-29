@@ -1,3 +1,6 @@
+from dotenv import load_dotenv
+load_dotenv()
+
 """
 Deliberately constructs a run where the final answer contradicts the real
 tool results, to prove the hallucination judge actually catches it.

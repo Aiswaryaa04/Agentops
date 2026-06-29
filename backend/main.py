@@ -1,3 +1,6 @@
+from dotenv import load_dotenv
+load_dotenv()
+
 """
 AgentOps ingestion API.
 
@@ -135,3 +138,9 @@ def compare_runs(run_a_id: str, run_b_id: str):
         run_a["events"], run_b["events"],
         run_a_label=run_a["name"], run_b_label=run_b["name"],
     )
+
+@app.get("/cost-summary")
+def get_cost_summary():
+    runs = db.fetch_runs()
+    runs_with_events = [db.fetch_run_with_events(r["id"]) for r in runs]
+    return cost.all_runs_cost_summary(runs_with_events)

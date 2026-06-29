@@ -1,7 +1,18 @@
 import { useEffect, useState } from "react";
 import { fetchRuns } from "./api";
 
-export default function RunList({ onSelectRun }) {
+const COLORS = {
+  bg: "#0a0a0a",
+  panel: "#101010",
+  border: "#1f1f1f",
+  text: "#e8e8e3",
+  dim: "#6b6b65",
+  amber: "#ffb347",
+  cyan: "#5eead4",
+  red: "#ff5f56",
+};
+
+export default function RunList({ onSelectRun, onOpenCostDashboard }) {
   const [runs, setRuns] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -18,6 +29,10 @@ export default function RunList({ onSelectRun }) {
         agentops <span style={styles.promptDim}>$</span> runs
         <span className="cursor-blink" style={styles.cursor}>▋</span>
       </div>
+
+      <button onClick={onOpenCostDashboard} style={styles.costDashboardButton}>
+        view cost dashboard →
+      </button>
 
       <div style={styles.headerRow}>
         <span style={{ width: 10 }} />
@@ -54,18 +69,6 @@ export default function RunList({ onSelectRun }) {
   );
 }
 
-const COLORS = {
-  bg: "#0a0a0a",
-  panel: "#101010",
-  border: "#1f1f1f",
-  text: "#e8e8e3",
-  dim: "#6b6b65",
-  amber: "#ffb347",
-  cyan: "#5eead4",
-  red: "#ff5f56",
-  green: "#5eead4",
-};
-
 const styles = {
   container: {
     background: COLORS.bg,
@@ -76,12 +79,24 @@ const styles = {
   prompt: {
     fontSize: 18,
     color: COLORS.amber,
-    marginBottom: 36,
+    marginBottom: 20,
     fontWeight: 500,
     letterSpacing: 0.5,
   },
   promptDim: { color: COLORS.dim },
   cursor: { color: COLORS.amber, marginLeft: 4 },
+  costDashboardButton: {
+    background: "transparent",
+    border: `1px solid ${COLORS.amber}`,
+    color: COLORS.amber,
+    padding: "6px 16px",
+    borderRadius: 4,
+    cursor: "pointer",
+    fontFamily: "inherit",
+    fontSize: 12,
+    marginBottom: 28,
+    display: "inline-block",
+  },
   headerRow: {
     display: "grid",
     gridTemplateColumns: "10px 1fr 100px 100px",

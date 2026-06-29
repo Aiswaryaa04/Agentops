@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import ReactFlow, { Background, Controls, ReactFlowProvider, useReactFlow } from "reactflow";
 import "reactflow/dist/style.css";
 import { fetchRunDetail, fetchFlags, analyzeRun, fetchRunCost } from "./api";
@@ -46,6 +46,11 @@ export default function TraceViewer({ runId, onBack }) {
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // --- Replay mode state ---
+  const [replayIndex, setReplayIndex] = useState(-1); // -1 = not playing
+  const [isPlaying, setIsPlaying] = useState(false);
+  const replayTimer = useRef(null);
+
   async function loadData() {
     setLoading(true);
     const runData = await fetchRunDetail(runId);
@@ -61,17 +66,74 @@ export default function TraceViewer({ runId, onBack }) {
     loadData();
   }, [runId]);
 
+  useEffect(() => {
+    return () => clearTimeout(replayTimer.current);
+  }, []);
+
   async function handleAnalyze() {
     await analyzeRun(runId);
     await loadData();
   }
 
+  function startReplay() {
+    if (!run) return;
+    setIsPlaying(true);
+    setReplayIndex(0);
+    setSelectedEvent(run.events[0]);
+  }
+
+  function stopReplay() {
+    setIsPlaying(false);
+    clearTimeout(replayTimer.current);
+  }
+
+  // Advance replay one step every 1.4s while playing.
+  useEffect(() => {
+    if (!isPlaying || !run) return;
+    if (replayIndex >= run.events.length - 1) {
+      setIsPlaying(false);
+      return;
+    }
+    replayTimer.current = setTimeout(() => {
+      const next = replayIndex + 1;
+      setReplayIndex(next);
+      setSelectedEvent(run.events[next]);
+    }, 1400);
+    return () => clearTimeout(replayTimer.current);
+  }, [isPlaying, replayIndex, run]);
+
+  function stepReplay(direction) {
+    if (!run) return;
+    clearTimeout(replayTimer.current);
+    setIsPlaying(false);
+    const next = Math.min(Math.max(replayIndex + direction, 0), run.events.length - 1);
+    setReplayIndex(next);
+    setSelectedEvent(run.events[next]);
+  }
+
   if (loading) return <div style={styles.loading}>loading trace…</div>;
 
-  const { nodes, edges } = traceToGraph(run.events, flags);
+  const { nodes: baseNodes, edges } = traceToGraph(run.events, flags);
   const flagCount = flags.length;
 
-  // Look up this event's individual cost from the cost breakdown, by id.
+  // During replay, dim every node except the one currently "playing" --
+  // this is what makes it feel like step-by-step reconstruction rather
+  // than a static graph.
+  const nodes = baseNodes.map((node, i) => {
+    if (replayIndex === -1) return node;
+    const isCurrent = i === replayIndex;
+    const isPast = i < replayIndex;
+    return {
+      ...node,
+      style: {
+        ...node.style,
+        opacity: isCurrent ? 1 : isPast ? 0.55 : 0.2,
+        boxShadow: isCurrent ? "0 0 18px rgba(255,255,255,0.35)" : node.style.boxShadow,
+        transition: "opacity 0.3s ease",
+      },
+    };
+  });
+
   const costByEventId = {};
   if (cost) {
     for (const e of cost.events) costByEventId[e.event_id] = e.cost_usd;
@@ -91,9 +153,7 @@ export default function TraceViewer({ runId, onBack }) {
             {cost && (
               <>
                 {" · "}
-                <span style={{ color: COLORS.amber }}>
-                  {formatCost(cost.total_cost_usd)}
-                </span>
+                <span style={{ color: COLORS.amber }}>{formatCost(cost.total_cost_usd)}</span>
                 {" "}
                 <span style={{ color: COLORS.dim }}>
                   ({cost.total_tokens_in}in/{cost.total_tokens_out}out)
@@ -105,13 +165,37 @@ export default function TraceViewer({ runId, onBack }) {
         <button onClick={handleAnalyze} style={styles.analyzeButton}>re-analyze</button>
       </div>
 
+      {/* Replay controls bar */}
+      <div style={styles.replayBar}>
+        {replayIndex === -1 ? (
+          <button onClick={startReplay} style={styles.replayButton}>▶ replay</button>
+        ) : (
+          <>
+            <button onClick={() => stepReplay(-1)} style={styles.replayIconButton} disabled={replayIndex <= 0}>⏮</button>
+            {isPlaying ? (
+              <button onClick={stopReplay} style={styles.replayIconButton}>⏸ pause</button>
+            ) : (
+              <button onClick={() => setIsPlaying(true)} style={styles.replayIconButton}>▶ play</button>
+            )}
+            <button onClick={() => stepReplay(1)} style={styles.replayIconButton} disabled={replayIndex >= run.events.length - 1}>⏭</button>
+            <span style={styles.replayProgress}>
+              step {replayIndex + 1} / {run.events.length}
+            </span>
+            <button onClick={() => { stopReplay(); setReplayIndex(-1); }} style={styles.replayExitButton}>exit replay</button>
+          </>
+        )}
+      </div>
+
       <div style={styles.bodyRow}>
         <div style={styles.graphArea}>
           <ReactFlowProvider>
             <GraphCanvas
               nodes={nodes}
               edges={edges}
-              onNodeClick={(_, node) => setSelectedEvent(node.data.event)}
+              onNodeClick={(_, node) => {
+                stopReplay();
+                setSelectedEvent(node.data.event);
+              }}
               panelOpen={!!selectedEvent}
             />
           </ReactFlowProvider>
@@ -162,6 +246,23 @@ const styles = {
   titleBlock: { display: "flex", flexDirection: "column", alignItems: "center" },
   runName: { fontSize: 13, fontWeight: 500 },
   runMeta: { fontSize: 11, color: COLORS.dim, marginTop: 2 },
+  replayBar: {
+    display: "flex", alignItems: "center", gap: 10, padding: "8px 24px",
+    borderBottom: `1px solid ${COLORS.border}`, background: "#0d0d0d",
+  },
+  replayButton: {
+    background: "transparent", border: `1px solid ${COLORS.cyan}`, color: COLORS.cyan,
+    padding: "5px 14px", borderRadius: 4, cursor: "pointer", fontFamily: "inherit", fontSize: 12,
+  },
+  replayIconButton: {
+    background: "transparent", border: `1px solid ${COLORS.border}`, color: COLORS.text,
+    padding: "5px 12px", borderRadius: 4, cursor: "pointer", fontFamily: "inherit", fontSize: 12,
+  },
+  replayProgress: { color: COLORS.dim, fontSize: 11, marginLeft: 4 },
+  replayExitButton: {
+    background: "none", border: "none", color: COLORS.dim, cursor: "pointer",
+    fontFamily: "inherit", fontSize: 11, marginLeft: "auto", textDecoration: "underline",
+  },
   bodyRow: { flex: 1, display: "flex", minHeight: 0 },
   graphArea: { flex: 1, minWidth: 0 },
   loading: { color: COLORS.dim, padding: 40, fontSize: 13 },
