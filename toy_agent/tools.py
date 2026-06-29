@@ -6,6 +6,11 @@ real facts from a small dataset deterministically. It's swapping the data
 source, not faking the agent's behavior.
 """
 
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+from agentops_sdk import trace_tool
+
 FAKE_KNOWLEDGE_BASE = {
     "speed of light": "299,792,458 meters per second",
     "boiling point of water": "100 degrees Celsius at sea level",
@@ -13,6 +18,7 @@ FAKE_KNOWLEDGE_BASE = {
 }
 
 
+@trace_tool
 def calculator(expression: str) -> str:
     """Evaluate a basic arithmetic expression. e.g. '23 * 4 + 1'"""
     try:
@@ -25,6 +31,7 @@ def calculator(expression: str) -> str:
         return f"Error: {e}"
 
 
+@trace_tool
 def search(query: str) -> str:
     """Look up a fact from the knowledge base."""
     query_lower = query.lower().strip()
