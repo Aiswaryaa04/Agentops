@@ -14,6 +14,7 @@ from typing import Optional, Any
 import db
 import failure_detection  
 import cost
+import llm_judge
 
 app = FastAPI(title="AgentOps Ingestion API")
 
@@ -99,3 +100,38 @@ def get_run_cost(run_id: str):
     if run is None:
         raise HTTPException(status_code=404, detail="Run not found")
     return cost.run_cost_breakdown(run["events"])
+
+@app.post("/runs/{run_id}/judge_hallucination")
+def judge_run_hallucination(run_id: str):
+    run = db.fetch_run_with_events(run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    verdict = llm_judge.judge_hallucination(run["events"])
+
+    # Persist as a failure flag if hallucination was found, same table as the
+    # rule-based detectors -- keeps all flags queryable in one place.
+    if verdict["is_hallucination"]:
+        import uuid
+        db.insert_flags(run_id, [{
+            "id": str(uuid.uuid4()),
+            "event_id": None,  # run-level judgment, not tied to one event
+            "flag_type": "hallucination",
+            "severity": "critical",
+            "description": verdict["reasoning"],
+        }])
+
+    return verdict
+
+
+@app.post("/runs/compare")
+def compare_runs(run_a_id: str, run_b_id: str):
+    run_a = db.fetch_run_with_events(run_a_id)
+    run_b = db.fetch_run_with_events(run_b_id)
+    if run_a is None or run_b is None:
+        raise HTTPException(status_code=404, detail="One or both runs not found")
+
+    return llm_judge.judge_regression(
+        run_a["events"], run_b["events"],
+        run_a_label=run_a["name"], run_b_label=run_b["name"],
+    )

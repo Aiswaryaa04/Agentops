@@ -21,3 +21,8 @@ export async function analyzeRun(runId) {
   const res = await axios.post(`${API_BASE}/runs/${runId}/analyze`);
   return res.data;
 }
+
+export async function fetchRunCost(runId) {
+  const res = await axios.get(`${API_BASE}/runs/${runId}/cost`);
+  return res.data;
+}
