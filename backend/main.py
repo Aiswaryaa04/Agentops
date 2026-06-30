@@ -24,7 +24,7 @@ app = FastAPI(title="AgentOps Ingestion API")
 # Allow the frontend (running on a different port) to call this API.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # fine for local dev; tighten before any real deploy
+    allow_origins=["https://agentops-1-flxi.onrender.com"],  
     allow_methods=["*"],
     allow_headers=["*"],
 )
